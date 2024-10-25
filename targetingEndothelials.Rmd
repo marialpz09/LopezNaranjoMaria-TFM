@@ -1,0 +1,586 @@
+---
+title: "Targeting Endothial cells and Endothelial progenitors "
+output: html_document
+date: "2024-05-12"
+---
+
+
+## Overview
+
+Targeting "ENDOTHELIAL PROGENITORS" CD45-CD31+ from cluster 21. This cluster as we have seen, has the proper markers of EC and EP. 
+The intention here is to observe genes that are significantly expressed in both condition HI and SHAM,  and trying to get from this the GO terms. GO terms means, to get the biological functions. These biological functions are going to be repressed or activated HI vs SHAM. 
+
+## Libraries
+
+First, we open the libraries.
+```{r, eval=FALSE }
+library(patchwork)
+library(stringr)
+library(ggplot2)
+library(ggpubr)
+library(cowplot)
+library(Seurat)
+library(dplyr)
+library(tidyr)
+library(writexl)
+library(openxlsx)
+library(DESeq2)
+library(tidyverse)
+library(SingleCellExperiment)
+library(ggrepel)
+library(DESeq2)
+library(tibble)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+```
+
+
+## Find Markers
+For the endothelial cells with a well-defined cluster 21, we will look for the 
+markers of this cluster compared to the others in SHAM.
+```{r , eval=FALSE }
+table(Idents(datos.integrated)= "integrated_snn_res.0.8")
+table(Idents(datos.integrated))
+
+sham.sorted=subset(datos.integrated, subset= condition=="SHAM")
+ECmarker=FindMarkers(sham.sorted, ident.1 = 21, only.pos=TRUE, min.pct = 0.1, 
+                                    logfc.threshold = 0.3, 
+                            max.cells.per.ident = 2000, slot="counts")
+ECmarker <- ECmarker %>%
+  dplyr::filter(p_val_adj < 0.05)
+
+```
+```{r , eval=FALSE }
+ecm = df.rename(columns={ECmarker[0]: 'markers'})
+```
+
+
+We do the same for HI.
+
+```{r , eval=FALSE }
+hi.sorted=subset(datos.integrated, subset= condition=="HI")
+HIECmarker=FindMarkers(hi.sorted, ident.1 = 21, only.pos=TRUE, min.pct = 0.1, 
+                                    logfc.threshold = 0.3, 
+                            max.cells.per.ident = 2000, slot="counts")
+HIECmarker <- HIECmarker %>%
+  dplyr::filter(p_val_adj < 0.05)
+```
+
+```{r, eval=FALSE }
+HIecm = df.rename(columns={HIECmarker[0]: 'markers'})
+```
+
+Next code is to get all the markers without the parameters that we can pretermined before, 
+just the pvalue.
+```{r, eval=FALSE }
+ALLHIECmarker=FindMarkers(hi.sorted, ident.1 = 21,
+                            max.cells.per.ident = 2000, slot="counts")
+ALLHIECmarker <- ALLHIECmarker %>%
+  dplyr::filter(p_val_adj < 0.05)
+
+ALLSHAMECmarker=FindMarkers(sham.sorted, ident.1 = 21,
+                            max.cells.per.ident = 2000, slot="counts")
+ALLSHAMECmarker <- ALLSHAMECmarker %>%
+  dplyr::filter(p_val_adj < 0.05)
+```
+
+Save all the markers as excell format for each condition and parameters:
+```{r, eval=FALSE }
+write.xlsx(ALLSHAMECmarker, "ALLSHAMEndomarker.xlsx",rowNames= T, colnames=T)
+write.xlsx(ALLHIECmarker, "ALLHIEndomarker.xlsx",rowNames= T, colnames=T)
+write.xlsx(ECmarker, "SHAMEndomarker.xlsx",rowNames= T, colnames=T)
+
+
+write.xlsx(HIECmarker, "HIEndomarker.xlsx",rowNames= T, colnames=T)
+
+```
+
+
+### DEG, Differential expresion genes:
+
+
+First we have to analize some markers for condition. For doing that we split the 
+object between conditions.
+```{r, eval=FALSE }
+
+cluster21 <- subset(datos.integrated, idents = "21")
+cluster21
+table(cluster21$sample)
+# sm1HI   sm2HI sm8SHAM sm9SHAM 
+ #  18      19       8      10 
+
+table(cluster21$condition)   
+
+#      SHAM 8 + 10= 18
+#      hi 18 + 19= 37
+
+# Subset SHAM in cluster 21
+cluster21SHAM <- subset(cluster21, subset = condition == "SHAM")
+
+# Subset HI in cluster 21
+cluster21HI <- subset(cluster21, subset = condition == "HI")
+
+```
+
+
+**Mapping the features between conditions**:
+```{r, eval=FALSE }
+# Plotear la expresión de Cdh5 en SHAM (clúster 21)
+FeaturePlot(cluster21SHAM, features = "Cdh5", min.cutoff = "q10") + ggtitle("Cdh5 Cluster 21 - SHAM")  +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de Cdh5 en HI (clúster 21)
+FeaturePlot(cluster21HI, features = "Cdh5", min.cutoff = "q10") + ggtitle("Cdh5 Cluster 21 - HI") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+# Plotear la expresión de cd34 en SHAM (clúster 21)
+FeaturePlot(cluster21SHAM, features = "Cd34", min.cutoff = "q10") + ggtitle("Cd34 Cluster 21 - SHAM") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de Cd34 en HI (clúster 21)
+FeaturePlot(cluster21HI, features = "Cd34", min.cutoff = "q10") + ggtitle("Cd34 Cluster 21 - HI") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de kdr en SHAM (clúster 21)
+FeaturePlot(cluster21SHAM, features = "Kdr", min.cutoff = "q10") + ggtitle("Kdr Cluster 21 - SHAM") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de kdr en HI (clúster 21)
+FeaturePlot(cluster21HI, features = "Kdr", min.cutoff = "q10") + ggtitle("Kdr Cluster 21 - HI") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de flt1 en SHAM (clúster 21)
+FeaturePlot(cluster21SHAM, features = "Flt1", min.cutoff = "q10") + ggtitle(" Flt1 Cluster 21 - SHAM") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de flt1 en HI (clúster 21)
+FeaturePlot(cluster21HI, features = "Flt1", min.cutoff = "q10") + ggtitle("Flt1 Cluster 21 - HI") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de Pecam1 en SHAM (clúster 21)
+FeaturePlot(cluster21SHAM, features = "Pecam1", min.cutoff = "q10") + ggtitle("Pecam1 Cluster 21 - SHAM") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+# Plotear la expresión de Pexam1 en HI (clúster 21)
+FeaturePlot(cluster21HI, features = "Pecam1", min.cutoff = "q10") + ggtitle("Pecam1 Cluster 21 - HI") +coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+
+
+```
+
+
+```{r, eval=FALSE }
+# Plotear la expresión de Cdh5 en SHAM (clúster 21)
+p1 <- FeaturePlot(cluster21SHAM, features = "Cdh5", min.cutoff = "q10") + 
+  ggtitle("Cdh5 Cluster 21 - SHAM") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Cdh5_Cluster21_SHAM.png", plot = p1, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Cdh5 en HI (clúster 21)
+p2 <- FeaturePlot(cluster21HI, features = "Cdh5", min.cutoff = "q10") + 
+  ggtitle("Cdh5 Cluster 21 - HI") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Cdh5_Cluster21_HI.png", plot = p2, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Cd34 en SHAM (clúster 21)
+p3 <- FeaturePlot(cluster21SHAM, features = "Cd34", min.cutoff = "q10") + 
+  ggtitle("Cd34 Cluster 21 - SHAM") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Cd34_Cluster21_SHAM.png", plot = p3, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Cd34 en HI (clúster 21)
+p4 <- FeaturePlot(cluster21HI, features = "Cd34", min.cutoff = "q10") + 
+  ggtitle("Cd34 Cluster 21 - HI") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Cd34_Cluster21_HI.png", plot = p4, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Kdr en SHAM (clúster 21)
+p5 <- FeaturePlot(cluster21SHAM, features = "Kdr", min.cutoff = "q10") + 
+  ggtitle("Kdr Cluster 21 - SHAM") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Kdr_Cluster21_SHAM.png", plot = p5, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Kdr en HI (clúster 21)
+p6 <- FeaturePlot(cluster21HI, features = "Kdr", min.cutoff = "q10") + 
+  ggtitle("Kdr Cluster 21 - HI") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Kdr_Cluster21_HI.png", plot = p6, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Flt1 en SHAM (clúster 21)
+p7 <- FeaturePlot(cluster21SHAM, features = "Flt1", min.cutoff = "q10") + 
+  ggtitle("Flt1 Cluster 21 - SHAM") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Flt1_Cluster21_SHAM.png", plot = p7, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Flt1 en HI (clúster 21)
+p8 <- FeaturePlot(cluster21HI, features = "Flt1", min.cutoff = "q10") + 
+  ggtitle("Flt1 Cluster 21 - HI") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Flt1_Cluster21_HI.png", plot = p8, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Pecam1 en SHAM (clúster 21)
+p9 <- FeaturePlot(cluster21SHAM, features = "Pecam1", min.cutoff = "q10") + 
+  ggtitle("Pecam1 Cluster 21 - SHAM") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Pecam1_Cluster21_SHAM.png", plot = p9, width = 10, height = 8, dpi = 300)
+
+# Plotear la expresión de Pecam1 en HI (clúster 21)
+p10 <- FeaturePlot(cluster21HI, features = "Pecam1", min.cutoff = "q10") + 
+  ggtitle("Pecam1 Cluster 21 - HI") + 
+  coord_cartesian(xlim = c(-2, 0), ylim = c(2, 4))
+ggsave("Pecam1_Cluster21_HI.png", plot = p10, width = 10, height = 8, dpi = 300)
+
+```
+
+# COMPARATIVE MARKERS HI vs SHAM 
+
+### DESeq
+
+```{r, eval=FALSE}
+Idents(cluster21) <- "integrated_snn_res.0.8"
+
+label_seurat_recluster <- as.data.frame(table(cluster21$integrated_snn_res.0.8))
+```
+
+For being able to compare our conditions we need to perform pseudobulk analysis. 
+
+
+**Preparation for DESeq:**
+
+Here, the aggregated expression counts are converted into a matrix format, which is suitable for further analysis in DESeq2.
+```{r, eval=FALSE}
+metadata <- cluster21@meta.data
+metadata$condition<- condition
+metadata$sample<- factor(metadata$sample)
+
+DESeq_object <- CreateSeuratObject(counts = cluster21@assays$RNA@counts, meta.data = metadata)
+
+
+
+metadata$condition<- factor(metadata$condition)
+# Aggregate across cluster-sample groups
+
+bulk <- AggregateExpression(Deseq_object, slot = "counts", assays = "RNA", group.by = "sample")
+#This line aggregates expression data from the DESeq_object by the sample groups. It collects the counts from the RNA assay.
+##DESeq2 object
+
+countData <- as.matrix(bulk$RNA)
+```
+
+**Generate sample level metadata**
+
+```{r, eval=FALSE}
+
+colData <- data.frame(samples = colnames(countData))
+
+
+colData <- colData %>%
+  mutate(condition = ifelse(grepl("HI", samples), 'HI', 'SHAM')) %>%
+  column_to_rownames(var = 'samples')
+
+colData$condition <- factor(colData$condition)
+colData$condition <- relevel(colData$condition, ref = "SHAM")
+
+
+# perform DESeq2 --------
+# Create DESeq2 object   
+dds <- DESeqDataSetFromMatrix(countData = countData,
+                       colData = colData,
+                       design = ~ condition)
+
+```
+A DESeq2 dataset object (dds) is created from the count data and sample metadata. The design formula specifies that the analysis will focus on the condition variable.
+
+**Filtering Low counts genes:**
+This part filters out genes that have a low sum of counts across all samples (less than 10). Only genes meeting this criterion are retained in the dds object
+```{r, eval=FALSE}
+keep <- rowSums(counts(dds)) >=10
+dds <- dds[keep,]
+```
+
+**Run DESeq2 differential expression analysis**
+
+Results of the differential expression analysis comparing the HI and SHAM conditions are extracted and stored in results. Rows with missing values (NA) are removed. Furthermore, Wilcoxon test is performed for each gene.
+
+
+
+```{r, eval=FALSE}
+
+
+# Perform DESeq2 analysis
+dds <- DESeq(dds)
+results <- results(dds)
+# Extract normalized counts
+normalized_counts <- counts(dds, normalized = TRUE)
+
+#Prepare condition information
+condition <- colData(dds)$condition
+
+
+# Initialize vectors for p-values and log2 fold changes
+
+p_values <- numeric(nrow(normalized_counts))
+log2FC <- numeric(nrow(normalized_counts))
+
+# Perform Wilcoxon test for each gene
+for (i in 1:nrow(normalized_counts)) {
+  groupHI <- normalized_counts[i, condition == "HI"]
+  groupSHAM <- normalized_counts[i, condition == "SHAM"]
+  if(length(groupHI) > 0 && length(groupSHAM) > 0) {  
+    
+    wilcox_result <- wilcox.test(groupHI, groupSHAM, exact = FALSE)  
+    p_values[i] <- wilcox_result$p.value
+    
+    meanHI <- mean(groupHI)
+    meanSHAM <- mean(groupSHAM)
+    log2FC[i] <- log2(meanHI / meanSHAM)
+  } else {
+    p_values[i] <- NA
+    log2FC[i] <- NA
+  }
+}
+
+# # Adjust p-values for FDR
+p_adjusted <- p.adjust(p_values, method = "BH")
+
+# Add adjusted p-values and log2 fold change to results
+res$wilcox_pvalue <- p_values
+res$wilcox_padj <- p_adjusted
+res$wilcox_log2FC <- log2FC
+
+
+# save results to CSV
+res_df <- as.data.frame(res)
+write.csv(res_df, "DESeq2_Wilcoxon_results.csv", row.names = TRUE)
+
+
+
+```
+
+
+```{r, eval=FALSE}
+
+activated.genes <- genes.ids[res$wilcox_log2FC > 0.2 & res$wilcox_padj < 0.1]
+repressed.genes <- genes.ids[res$wilcox_log2FC < - 0.2 & res$wilcox_padj < 0.1]
+
+length(activated.genes) 
+
+length(repressed.genes) 
+
+#Observing that DESeq has no differentially expressed genes testing with Wilcoxon
+
+```
+
+With a log fold change of 1 and an adjusted p-value of less than 0.05, no significant results are obtained.
+
+
+We have tried differents techniques to get the DEG, but none has good results.
+
+# FindAllmarkers, test= MAST
+Now we try with the function FINDALLMARKERS to find DEG.
+```{r, eval=FALSE}
+
+Idents(cluster21) <- "condition"
+cluster21.markersDEG <- FindMarkers(cluster21, 
+                                       ident.1 = "HI", 
+                                 ident.2 = "SHAM",
+                              test.use = "MAST")
+
+cluster21.markersDEG <- cluster21.markersDEG %>% 
+  dplyr::filter(p_val < 0.05)
+
+cluster21.markersDEG$p_val_adj=p.adjust(cluster21.markersDEG$p_val, method = "BH")
+#We adjust the p-value using the Benjamini-Hochberg (BH) method since by default applies the Bonferroni correction.
+head(cluster21.markersDEG)
+```
+```{r, eval=FALSE}
+write.xlsx(cluster21.markersDEG, file="cluster21.markerDEG.xlsx", rowNames=T)
+```
+
+
+
+We perform the analysis with MAST, as using Wilcoxon did not work well due to ties.
+
+MAST (Model-based Analysis of Single-cell Transcriptomics) is a statistical method 
+specifically designed for analyzing single-cell transcriptomics data. It is particularly 
+useful in the following contexts:
+
+### Characteristics of MAST
+- **Single-cell RNA-seq (scRNA-seq) Data**: MAST is optimized to handle the variability 
+and specific challenges of scRNA-seq data, such as dispersion and the presence of 
+many zeros (genes not detected in some cells).
+  
+- **Generalized Linear Regression Models**: MAST uses generalized linear regression 
+models to model gene expression, allowing it to adjust for different covariates and
+handle variability in gene expression robustly.
+  
+- **Bimodal Distribution**: MAST assumes that gene expression in scRNA-seq follows 
+a bimodal distribution, where a fraction of the cells do not express a given gene 
+(producing zeros), while another fraction expresses it at different levels.
+
+### Advantages of MAST
+- **Handling of Zeros**: MAST effectively manages the large number of zeros in 
+scRNA-seq data.
+  
+- **Flexibility**: It allows for the adjustment of different covariates in the 
+analysis, providing greater flexibility in modeling the data.
+  
+- **Robustness**: It is robust to the technical and biological variability 
+inherent in scRNA-seq data.
+
+
+**Identifying Activated and Repressed Genes**
+```{r, eval=FALSE}
+genes.cluster21 <- rownames(cluster21.markersDEG)
+
+
+activated.genes <- genes.cluster21[cluster21.markersDEG$avg_log2FC > 1 & cluster21.markersDEG$p_val_adj < 0.5]
+repressed.genes <- genes.cluster21[cluster21.markersDEG$avg_log2FC < - 1 & cluster21.markersDEG$p_val_adj < 0.5]
+length(activated.genes) #63
+
+length(repressed.genes) #54
+
+```
+The number of activated genes identified in the previous step is 63.
+the number of repressed genes identified is 54.
+
+**Checkpoint**
+Saving the Results, activated and repressed genes to CSV Files
+```{r, eval=FALSE}
+write.csv(activated.genes, "endoteliales/EndothelialsactivatedGenes.csv")
+write.csv(repressed.genes, "endoteliales/EndothelialRepressedGenes.csv")
+
+```
+
+
+## Volcano Plot
+
+A volcano plot is a type of scatter plot used primarily in genomics and other biological research to visualize the results of differential expression analysis. It helps identify genes or features that show statistically significant changes between two different conditions, such as HI or SHAM.
+X-axis: Represents the log fold change (logFC) of the genes. 
+Y-axis: Represents the -log10(p-value) or -log10(adjusted p-value).
+```{r, eval=FALSE}
+## Obtain logical vector where TRUE values denote padj values < 0.05 and fold change > 1.5 in either direction
+cluster21_table_thres <- (cluster21.markersDEG$p_val_adj < 0.05 & abs(cluster21.markersDEG$avg_log2FC) >= 1)
+
+volcano <- data.frame(
+  def = cluster21_table_thres,
+  log2foldChange = cluster21.markersDEG$avg_log2FC,
+  padjust = cluster21.markersDEG$p_val_adj
+)
+```
+
+
+```{r, eval=FALSE}
+
+
+volcano <- cluster21.markersDEG %>% 
+  rownames_to_column(var = "gene")
+
+
+
+# Create a volcano plot with the gene column as the labels
+ggplot(volcano, aes(x = avg_log2FC, y = -log10(p_val), colour = abs(avg_log2FC) >= 1 & p_val < 0.05)) +
+  geom_point(size = 2, alpha = 0.8) +
+  
+  
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
+  
+  
+  geom_text_repel(aes(label = gene), size = 3, max.overlaps = 15, box.padding = 0.35, point.padding = 0.3, segment.color = 'grey50') +
+  
+  #  Title and labels in axis
+  ggtitle("HI vs SHAM EC-cluster 21") +
+  xlab("log2 Fold Change") + 
+  ylab("-log10 Adjusted p-value") +
+  
+  # Personalizar colores de los puntos
+  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "blue")) +
+  
+  # Theme and style
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(size = rel(1.5), hjust = 0.5),
+        axis.title = element_text(size = rel(1.25)),
+        axis.text = element_text(size = rel(1.1)))
+
+
+  
+
+```
+
+![Volcano plot Hi vs SHAM](endoteliales/volcanoPlotLABELS.png)
+
+
+
+# Gene Ontology (GO). Cluster Profiler 
+
+The following code performs Gene Ontology (GO) enrichment analysis on a set of genes using the `clusterProfiler` package in R. It identifies significantly enriched GO terms based on the biological process (BP) ontology, and generates visualizations for both activated and repressed genes in cluster 21.
+
+## Activated Genes Analysis
+
+
+Perform GO enrichment analysis on the activated genes `gene` specifies the list of activated genes for cluster 21; `OrgDb` is the organism-specific database used ("org.Mm.eg.db" for mouse genes); `ont` refers to the ontology to be analyzed (BP = Biological Processes); `pAdjustMethod` specifies the method for p-value adjustment ("BH" = Benjamini-Hochberg); `pvalueCutoff` sets the significance threshold for the analysis (p < 0.05); `keyType` indicates the type of gene identifiers used (SYMBOL = gene symbols)
+```{r, eval=FALSE}
+enrich.go.cl5.act <- enrichGO(gene = activated.genes,
+                           OrgDb         = "org.Mm.eg.db",
+                           ont           = "BP", 
+                           readable = T,
+                           pAdjustMethod = "BH",
+                           pvalueCutoff  = 0.05,
+                           keyType = "SYMBOL")
+
+## Create a dot plot to visualize the top 15 enriched GO terms
+ dotplot(enrich.go.cl5.act,showCategory = 15) +
+  labs(x = " ", y = " ", title = "Activated genes (cluster 21)") 
+```
+
+Save Activated Genes GO Results to Excel
+```{r, eval=FALSE}
+
+#Convert the results of the GO enrichment into a data frame
+go_results <- as.data.frame(enrich.go.cl5.act)
+
+# Extract the GO terms (ID, Description) and their associated genes (geneID)
+# Format the `geneID` column to separate genes by commas for readability
+go_terms_genes <- go_results[, c("ID", "Description", "geneID")]
+
+go_terms_genes$geneID <- sapply(go_terms_genes$geneID, function(x) paste(strsplit(x, "/")[[1]], collapse = ", "))
+
+# Save the formatted GO terms and associated genes into an Excel file
+write.xlsx(go_terms_genes, file = "GO_terms_genes_activated.xlsx", rowNames = FALSE)
+
+
+cat("Archivo Excel con términos GO y genes asociados guardado como 'GO_terms_genes_activated.xlsx'")
+```
+
+## Repressed Genes Analysis
+ Perform GO enrichment analysis on the repressed genes in cluster 21.
+The parameters are the same as in the analysis for activated genes
+```{r, eval=FALSE}
+enrich.go.cl5.rep <- enrichGO(gene = repressed.genes,
+                           OrgDb         = "org.Mm.eg.db",
+                           ont           = "BP", 
+                           readable = T,
+                           pAdjustMethod = "BH",
+                           pvalueCutoff  = 0.05,
+                           keyType = "SYMBOL")
+
+
+dotplot(enrich.go.cl5.rep,showCategory = 15) +
+  labs(x = " ", y = " ", title = "Repressed genes (cluster 21)") 
+
+
+p1 + p2
+```
+
+Save Repressed Genes GO Results to Excel
+
+```{r, eval=FALSE}
+
+
+go_resultsRE <- as.data.frame(enrich.go.cl5.rep)
+
+go_terms_genesRE <- go_resultsRE[, c("ID", "Description", "geneID")]
+
+go_terms_genesRE$geneID <- sapply(go_terms_genesRE$geneID, function(x) paste(strsplit(x, "/")[[1]], collapse = ", "))
+
+write.xlsx(go_terms_genesRE, file = "GO_terms_genes_repressed.xlsx", rowNames = FALSE)
+
+
+cat("Archivo Excel con términos GO y genes asociados guardado como 'GO_terms_genes_repressed.xlsx'")
+
+```
+
+The above code performs GO enrichment analysis for both activated and repressed genes using enrichGO. It visualizes the top 15 enriched GO terms for each gene set using dot plots and exports the detailed results, including GO terms and associated genes, to Excel files for downstream analysis and interpretation. This approach helps in understanding the biological processes associated with the gene expression changes observed in cluster 21.
+
+
